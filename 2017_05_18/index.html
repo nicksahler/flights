@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+  html, body, #map, #wrapper {
+    position:relative; 
+    width: 100%;
+    height: 100%;
+    margin: auto auto;
+  }
+
+  svg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+  }
+  .polygons {
+    stroke: #444;
+  }
+  
+  .sites {
+    stroke: black;
+    fill: white;
+  }
+
+  .found {
+    stroke: black;
+    fill: red;
+  }
+  
+</style>
+<div id="wrapper">
+  <div id="map"></div>    
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/4.9.1/d3.js"></script>
+<script src="https://unpkg.com/d3-geo-voronoi"></script>
+<script src='https://api.mapbox.com/mapbox-gl-js/v0.37.0/mapbox-gl.js'></script>
+
+<script>
+fetch('https://gist.githubusercontent.com/nicksahler/fa36991ded561f47c8fa91c9fe0c0821/raw/fbee7280ffd73d7f0ad094aab528e531799de651/citi-bike-locations.geojson').then(d=>d.json()).then((data)=>{
+   mapboxgl.accessToken = 'pk.eyJ1Ijoic2hpbWl6dSIsImEiOiI0cl85c2pNIn0.RefZMaOzNn-IistVe-Zcnw'
+
+  var map = new mapboxgl.Map({
+    container: 'map', // container id
+    style: 'mapbox://styles/mapbox/streets-v8',
+    center: [-74.0776, 40.7282],
+    zoom: 13,  
+  });
+
+  var v = d3.geoVoronoi()(data);  
+
+  var projection = d3.geoMercator();
+
+  var bbox = document.body.getBoundingClientRect();
+
+  var container = map.getCanvasContainer();
+  var svg = d3.select(container).append("svg");
+  var path = d3.geoPath().projection(projection);
+
+  svg.append('g')
+    .attr('class', 'polygons')
+    .selectAll('path')
+    .data(v.polygons().features)
+    .enter()
+      .append('path')
+      .attr('d', path)
+      .attr('fill', function(_,i) { return d3.schemeCategory20[i%20]; })
+      .attr('opacity', 0.4)
+
+  svg.append('g')
+    .attr('class', 'sites')
+    .selectAll('path')
+    .data(data.features)
+      .enter()
+      .append('path')
+      .attr('d', path);
+
+  navigator.geolocation.getCurrentPosition((pt)=>{
+    let suggested = v.find(pt.coords.longitude, pt.coords.latitude);
+
+    svg.append('g')
+      .attr('class', 'found')
+      .selectAll('path')
+      .data([suggested])
+      .enter()
+      .append('path')
+      .attr('d', path);
+  }, console.log);
+
+  function render(elapsed) {
+    svg.selectAll('path').attr('d', path);
+    var center = map.getCenter();
+    var zoom = map.getZoom();
+    var scale = (512) * 0.5 / Math.PI * Math.pow(2, zoom);
+
+    console.log(projection);
+    projection
+    .fitExtent([projection([-74.0204049, 40.768867]),projection([-74.1170569, 40.661622])])
+    .center([center.lng, center.lat])
+    .translate([bbox.width/2, bbox.height/2])
+    .scale(scale)
+
+  };
+
+  map.on("viewreset", function() {
+    render()
+  })
+
+  map.on("move", function() {
+    render();
+  });
+
+  setInterval(render, 1000)
+});
+</script>
